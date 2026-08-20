@@ -171,12 +171,22 @@ export default function Tetris() {
   const holdRef = useRef<HTMLCanvasElement>(null);
   const nextRef = useRef<HTMLCanvasElement>(null);
   const dropSoundRef = useRef<HTMLAudioElement | null>(null);
+  const unevenSoundRef = useRef<HTMLAudioElement | null>(null);
 
   const playDropSound = () => {
     if (!dropSoundRef.current) {
       dropSoundRef.current = new Audio("/sounds/oohh_chinese_man_sound_.mp3");
     }
     const audio = dropSoundRef.current;
+    audio.currentTime = 0;
+    void audio.play().catch(() => {});
+  };
+
+  const playUnevenSound = () => {
+    if (!unevenSoundRef.current) {
+      unevenSoundRef.current = new Audio("/sounds/aray-koooo-1.mp3");
+    }
+    const audio = unevenSoundRef.current;
     audio.currentTime = 0;
     void audio.play().catch(() => {});
   };
@@ -410,6 +420,10 @@ let raf = 0;
           acc -= interval;
         }
         if (acc > interval * 3) acc = interval * 3;
+        if (s.lastLockUneven) {
+          s.lastLockUneven = false;
+          playUnevenSound();
+        }
       }
       render();
       raf = requestAnimationFrame(loop);

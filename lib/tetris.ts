@@ -214,6 +214,7 @@ export interface GameState {
   lines: number;
   level: number;
   status: Status;
+  lastLockUneven: boolean;
 }
 
 function topUpQueue(queue: PieceType[], bag: PieceType[]) {
@@ -239,6 +240,7 @@ export function initGame(): GameState {
     lines: 0,
     level: 1,
     status: "playing",
+    lastLockUneven: false,
   };
 }
 
@@ -261,8 +263,23 @@ export function softDrop(s: GameState): void {
   }
 }
 
+function hasGapBeneath(board: Board, piece: ActivePiece): boolean {
+  for (let r = 0; r < piece.shape.length; r++) {
+    for (let c = 0; c < piece.shape[r].length; c++) {
+      if (!piece.shape[r][c]) continue;
+      const by = piece.y + r;
+      const bx = piece.x + c;
+      if (by < 0 || by >= ROWS) continue;
+      const below = by + 1;
+      if (below < ROWS && board[below][bx] === 0) return true;
+    }
+  }
+  return false;
+}
+
 export function lock(s: GameState): void {
   const over = lockPiece(s.board, s.current);
+  s.lastLockUneven = hasGapBeneath(s.board, s.current);
   if (over) {
     s.status = "over";
     return;
