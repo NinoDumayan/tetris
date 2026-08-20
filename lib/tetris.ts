@@ -189,6 +189,14 @@ export function clearLines(board: Board): number {
   return cleared;
 }
 
+function findFullRows(board: Board): number[] {
+  const rows: number[] = [];
+  for (let r = 0; r < ROWS; r++) {
+    if (board[r].every((cell) => cell !== 0)) rows.push(r);
+  }
+  return rows;
+}
+
 export const LINE_SCORES = [0, 100, 300, 500, 800];
 
 export function levelSpeed(level: number): number {
@@ -203,6 +211,13 @@ export type Status = "playing" | "paused" | "over";
 
 export const PREVIEW_COUNT = 3;
 
+export const CLEAR_ANIMATION_MS = 200;
+
+export interface Clearing {
+  rows: number[];
+  remaining: number;
+}
+
 export interface GameState {
   board: Board;
   current: ActivePiece;
@@ -215,6 +230,7 @@ export interface GameState {
   level: number;
   status: Status;
   lastLockUneven: boolean;
+  clearing: Clearing | null;
 }
 
 function topUpQueue(queue: PieceType[], bag: PieceType[]) {
@@ -241,22 +257,26 @@ export function initGame(): GameState {
     level: 1,
     status: "playing",
     lastLockUneven: false,
+    clearing: null,
   };
 }
 
 export function moveLeft(s: GameState): void {
+  if (s.clearing) return;
   if (!collides(s.board, s.current.shape, s.current.x - 1, s.current.y)) {
     s.current.x--;
   }
 }
 
 export function moveRight(s: GameState): void {
+  if (s.clearing) return;
   if (!collides(s.board, s.current.shape, s.current.x + 1, s.current.y)) {
     s.current.x++;
   }
 }
 
 export function softDrop(s: GameState): void {
+  if (s.clearing) return;
   if (!collides(s.board, s.current.shape, s.current.x, s.current.y + 1)) {
     s.current.y++;
     s.score++;
@@ -277,18 +297,7 @@ function hasGapBeneath(board: Board, piece: ActivePiece): boolean {
   return false;
 }
 
-export function lock(s: GameState): void {
-  const over = lockPiece(s.board, s.current);
-  s.lastLockUneven = hasGapBeneath(s.board, s.current);
-  if (over) {
-    s.status = "over";
-    return;
-  }
-  const cleared = clearLines(s.board);
-  s.lines += cleared;
-  s.score += LINE_SCORES[cleared] * s.level;
-  s.level = levelFromLines(s.lines);
-
+function spawnNext(s: GameState): void {
   const nextType = s.queue.shift()!;
   s.current = spawnPiece(nextType);
   topUpQueue(s.queue, s.bag);
@@ -299,7 +308,34 @@ export function lock(s: GameState): void {
   }
 }
 
+export function finalizeClear(s: GameState): void {
+  if (!s.clearing) return;
+  const cleared = clearLines(s.board);
+  s.lines += cleared;
+  s.score += LINE_SCORES[cleared] * s.level;
+  s.level = levelFromLines(s.lines);
+  s.clearing = null;
+  spawnNext(s);
+}
+
+export function lock(s: GameState): void {
+  const over = lockPiece(s.board, s.current);
+  s.lastLockUneven = hasGapBeneath(s.board, s.current);
+  if (over) {
+    s.status = "over";
+    return;
+  }
+
+  const fullRows = findFullRows(s.board);
+  if (fullRows.length > 0) {
+    s.clearing = { rows: fullRows, remaining: CLEAR_ANIMATION_MS };
+    return;
+  }
+  spawnNext(s);
+}
+
 export function hardDrop(s: GameState): void {
+  if (s.clearing) return;
   const gy = ghostY(s.board, s.current.shape, s.current.x, s.current.y);
   const delta = gy - s.current.y;
   s.current.y = gy;
@@ -308,6 +344,7 @@ export function hardDrop(s: GameState): void {
 }
 
 export function gravityTick(s: GameState): void {
+  if (s.clearing) return;
   if (!collides(s.board, s.current.shape, s.current.x, s.current.y + 1)) {
     s.current.y++;
   } else {
@@ -316,11 +353,12 @@ export function gravityTick(s: GameState): void {
 }
 
 export function rotate(s: GameState, dir: 1 | -1): void {
+  if (s.clearing) return;
   tryRotate(s.board, s.current, dir);
 }
 
 export function hold(s: GameState): void {
-  if (!s.canHold) return;
+  if (s.clearing || !s.canHold) return;
   const prev = s.hold;
   s.hold = s.current.type;
   s.current = prev ? spawnPiece(prev) : spawnPiece(s.queue.shift()!);

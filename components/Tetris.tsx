@@ -6,6 +6,8 @@ import {
   COLORS,
   ROWS,
   SHAPES,
+  CLEAR_ANIMATION_MS,
+  finalizeClear,
   ghostY,
   gravityTick,
   hardDrop,
@@ -324,9 +326,30 @@ export default function Tetris() {
       }
 
       if (s.status === "playing") {
-        const gy = ghostY(s.board, s.current.shape, s.current.x, s.current.y);
-        drawShapeSprites(s.current.shape, s.current.x * CELL, gy * CELL, s.current.type, true);
-        drawShapeSprites(s.current.shape, s.current.x * CELL, s.current.y * CELL, s.current.type);
+        if (s.clearing) {
+          const progress = 1 - s.clearing.remaining / CLEAR_ANIMATION_MS;
+          const pulse = 0.35 + 0.4 * Math.sin(progress * Math.PI * 5);
+          boardCtx.save();
+          for (const r of s.clearing.rows) {
+            boardCtx.fillStyle = `rgba(255,255,255,${pulse.toFixed(3)})`;
+            boardCtx.shadowColor = "#ffffff";
+            boardCtx.shadowBlur = 18;
+            boardCtx.beginPath();
+            boardCtx.roundRect(
+              1.5,
+              r * CELL + 1.5,
+              BOARD_W - 3,
+              CELL - 3,
+              4,
+            );
+            boardCtx.fill();
+          }
+          boardCtx.restore();
+        } else {
+          const gy = ghostY(s.board, s.current.shape, s.current.x, s.current.y);
+          drawShapeSprites(s.current.shape, s.current.x * CELL, gy * CELL, s.current.type, true);
+          drawShapeSprites(s.current.shape, s.current.x * CELL, s.current.y * CELL, s.current.type);
+        }
       }
     };
 
@@ -413,13 +436,20 @@ let raf = 0;
       last = now;
       const s = stateRef.current;
       if (s.status === "playing") {
-        acc += dt;
-        const interval = levelSpeed(s.level);
-        while (acc >= interval) {
-          gravityTick(s);
-          acc -= interval;
+        if (s.clearing) {
+          s.clearing.remaining -= dt;
+          if (s.clearing.remaining <= 0) {
+            finalizeClear(s);
+          }
+        } else {
+          acc += dt;
+          const interval = levelSpeed(s.level);
+          while (acc >= interval) {
+            gravityTick(s);
+            acc -= interval;
+          }
+          if (acc > interval * 3) acc = interval * 3;
         }
-        if (acc > interval * 3) acc = interval * 3;
         if (s.lastLockUneven) {
           s.lastLockUneven = false;
           playUnevenSound();
