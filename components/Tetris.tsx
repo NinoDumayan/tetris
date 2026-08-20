@@ -38,45 +38,6 @@ function fitCanvas(canvas: HTMLCanvasElement, w: number, h: number) {
   return ctx;
 }
 
-function createBlockSprite(color: string, ghost = false): HTMLCanvasElement {
-  const size = CELL;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d")!;
-  const pad = 1;
-  const radius = Math.max(2, size * 0.16);
-  if (ghost) {
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = color;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(pad, pad, size - pad * 2, size - pad * 2, radius);
-    ctx.fill();
-    ctx.stroke();
-  } else {
-    ctx.shadowColor = color;
-    ctx.shadowBlur = size * 0.5;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.roundRect(pad, pad, size - pad * 2, size - pad * 2, radius);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "rgba(255,255,255,0.3)";
-    ctx.beginPath();
-    ctx.roundRect(
-      pad + 1.5,
-      pad + 1.5,
-      size - (pad + 1.5) * 2,
-      (size - (pad + 1.5) * 2) * 0.34,
-      radius * 0.6,
-    );
-    ctx.fill();
-  }
-  return canvas;
-}
-
 function drawBlock(
   ctx: CanvasRenderingContext2D,
   px: number,
@@ -134,6 +95,47 @@ function drawShape(
       drawBlock(ctx, px + c * cell, py + r * cell, cell, color, ghost);
     }
   }
+}
+
+const SPRITE_SCALE = 2;
+
+function createBlockSprite(color: string, ghost = false): HTMLCanvasElement {
+  const size = CELL * SPRITE_SCALE;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  const pad = 1 * SPRITE_SCALE;
+  const radius = Math.max(2, CELL * 0.16) * SPRITE_SCALE;
+  if (ghost) {
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2 * SPRITE_SCALE;
+    ctx.beginPath();
+    ctx.roundRect(pad, pad, size - pad * 2, size - pad * 2, radius);
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    ctx.shadowColor = color;
+    ctx.shadowBlur = CELL * 0.5 * SPRITE_SCALE;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.roundRect(pad, pad, size - pad * 2, size - pad * 2, radius);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "rgba(255,255,255,0.3)";
+    ctx.beginPath();
+    ctx.roundRect(
+      pad + 1.5 * SPRITE_SCALE,
+      pad + 1.5 * SPRITE_SCALE,
+      size - (pad + 1.5 * SPRITE_SCALE) * 2,
+      (size - (pad + 1.5 * SPRITE_SCALE) * 2) * 0.34,
+      radius * 0.6,
+    );
+    ctx.fill();
+  }
+  return canvas;
 }
 
 function drawPreviewShape(
@@ -258,45 +260,7 @@ export default function Tetris() {
       blockSprites.set(`${type}:ghost`, createBlockSprite(COLORS[type], true));
     }
 
-    const boardLayer = document.createElement("canvas");
-    boardLayer.width = boardCanvas.width;
-    boardLayer.height = boardCanvas.height;
-    const layerCtx = boardLayer.getContext("2d")!;
-    const layerDpr = boardCanvas.width / BOARD_W;
-    layerCtx.setTransform(layerDpr, 0, 0, layerDpr, 0, 0);
-
-    const renderBoardLayer = () => {
-      const s = stateRef.current;
-      layerCtx.clearRect(0, 0, BOARD_W, BOARD_H);
-      layerCtx.fillStyle = "rgba(6, 10, 24, 0.9)";
-      layerCtx.fillRect(0, 0, BOARD_W, BOARD_H);
-
-      layerCtx.strokeStyle = "rgba(148, 163, 184, 0.08)";
-      layerCtx.lineWidth = 1;
-      for (let c = 0; c <= COLS; c++) {
-        layerCtx.beginPath();
-        layerCtx.moveTo(c * CELL + 0.5, 0);
-        layerCtx.lineTo(c * CELL + 0.5, BOARD_H);
-        layerCtx.stroke();
-      }
-      for (let r = 0; r <= ROWS; r++) {
-        layerCtx.beginPath();
-        layerCtx.moveTo(0, r * CELL + 0.5);
-        layerCtx.lineTo(BOARD_W, r * CELL + 0.5);
-        layerCtx.stroke();
-      }
-
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const cell = s.board[r][c];
-          if (cell !== 0) {
-            layerCtx.drawImage(blockSprites.get(cell)!, c * CELL, r * CELL);
-          }
-        }
-      }
-    };
-
-    const drawShape = (
+    const drawShapeSprites = (
       shape: number[][],
       px: number,
       py: number,
@@ -308,40 +272,51 @@ export default function Tetris() {
       for (let r = 0; r < shape.length; r++) {
         for (let c = 0; c < shape[r].length; c++) {
           if (!shape[r][c]) continue;
-          boardCtx.drawImage(sprite, px + c * CELL, py + r * CELL);
+          boardCtx.drawImage(sprite, px + c * CELL, py + r * CELL, CELL, CELL);
         }
       }
-    };
-
-    let layerFp = -1;
-    const boardFingerprint = () => {
-      const s = stateRef.current;
-      let fp = 0;
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const cell = s.board[r][c];
-          if (cell !== 0) {
-            fp = (fp + cell.charCodeAt(0) * (r * COLS + c + 1)) % 2147483647;
-          }
-        }
-      }
-      return fp;
     };
 
     const renderBoard = () => {
       const s = stateRef.current;
-      const fp = boardFingerprint();
-      if (fp !== layerFp) {
-        renderBoardLayer();
-        layerFp = fp;
-      }
       boardCtx.clearRect(0, 0, BOARD_W, BOARD_H);
-      boardCtx.drawImage(boardLayer, 0, 0);
+      boardCtx.fillStyle = "rgba(6, 10, 24, 0.9)";
+      boardCtx.fillRect(0, 0, BOARD_W, BOARD_H);
+
+      boardCtx.strokeStyle = "rgba(148, 163, 184, 0.08)";
+      boardCtx.lineWidth = 1;
+      for (let c = 0; c <= COLS; c++) {
+        boardCtx.beginPath();
+        boardCtx.moveTo(c * CELL + 0.5, 0);
+        boardCtx.lineTo(c * CELL + 0.5, BOARD_H);
+        boardCtx.stroke();
+      }
+      for (let r = 0; r <= ROWS; r++) {
+        boardCtx.beginPath();
+        boardCtx.moveTo(0, r * CELL + 0.5);
+        boardCtx.lineTo(BOARD_W, r * CELL + 0.5);
+        boardCtx.stroke();
+      }
+
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const cell = s.board[r][c];
+          if (cell !== 0) {
+            boardCtx.drawImage(
+              blockSprites.get(cell)!,
+              c * CELL,
+              r * CELL,
+              CELL,
+              CELL,
+            );
+          }
+        }
+      }
 
       if (s.status === "playing") {
         const gy = ghostY(s.board, s.current.shape, s.current.x, s.current.y);
-        drawShape(s.current.shape, s.current.x * CELL, gy * CELL, s.current.type, true);
-        drawShape(s.current.shape, s.current.x * CELL, s.current.y * CELL, s.current.type);
+        drawShapeSprites(s.current.shape, s.current.x * CELL, gy * CELL, s.current.type, true);
+        drawShapeSprites(s.current.shape, s.current.x * CELL, s.current.y * CELL, s.current.type);
       }
     };
 
