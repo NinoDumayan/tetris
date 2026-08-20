@@ -129,6 +129,16 @@ export default function Tetris() {
   const boardRef = useRef<HTMLCanvasElement>(null);
   const holdRef = useRef<HTMLCanvasElement>(null);
   const nextRef = useRef<HTMLCanvasElement>(null);
+  const dropSoundRef = useRef<HTMLAudioElement | null>(null);
+
+  const playDropSound = () => {
+    if (!dropSoundRef.current) {
+      dropSoundRef.current = new Audio("/sounds/oohh_chinese_man_sound_.mp3");
+    }
+    const audio = dropSoundRef.current;
+    audio.currentTime = 0;
+    void audio.play().catch(() => {});
+  };
 
   const stateRef = useRef<GameState>(initGame());
   const prevHud = useRef<Hud>({ score: 0, lines: 0, level: 1, status: "playing" });
@@ -312,7 +322,10 @@ export default function Tetris() {
           break;
         case "Space":
           e.preventDefault();
-          if (playing && !e.repeat) hardDrop(s);
+          if (playing && !e.repeat) {
+            hardDrop(s);
+            playDropSound();
+          }
           break;
         case "KeyC":
         case "ShiftLeft":
