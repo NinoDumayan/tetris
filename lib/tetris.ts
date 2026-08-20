@@ -1,0 +1,301 @@
+export const COLS = 10;
+export const ROWS = 20;
+
+export type PieceType = "I" | "O" | "T" | "S" | "Z" | "J" | "L";
+
+export const TYPES: PieceType[] = ["I", "O", "T", "S", "Z", "J", "L"];
+
+export const COLORS: Record<PieceType, string> = {
+  I: "#22d3ee",
+  O: "#fde047",
+  T: "#c084fc",
+  S: "#4ade80",
+  Z: "#f87171",
+  J: "#60a5fa",
+  L: "#fb923c",
+};
+
+export const SHAPES: Record<PieceType, number[][]> = {
+  I: [
+    [0, 0, 0, 0],
+    [1, 1, 1, 1],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+  ],
+  O: [
+    [1, 1],
+    [1, 1],
+  ],
+  T: [
+    [0, 1, 0],
+    [1, 1, 1],
+    [0, 0, 0],
+  ],
+  S: [
+    [0, 1, 1],
+    [1, 1, 0],
+    [0, 0, 0],
+  ],
+  Z: [
+    [1, 1, 0],
+    [0, 1, 1],
+    [0, 0, 0],
+  ],
+  J: [
+    [1, 0, 0],
+    [1, 1, 1],
+    [0, 0, 0],
+  ],
+  L: [
+    [0, 0, 1],
+    [1, 1, 1],
+    [0, 0, 0],
+  ],
+};
+
+export type Cell = 0 | PieceType;
+
+export type Board = Cell[][];
+
+export function createBoard(): Board {
+  return Array.from({ length: ROWS }, () => Array<Cell>(COLS).fill(0));
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+export function drawFromBag(bag: PieceType[]): PieceType {
+  if (bag.length === 0) {
+    bag.push(...shuffle(TYPES));
+  }
+  return bag.shift()!;
+}
+
+export interface ActivePiece {
+  type: PieceType;
+  shape: number[][];
+  x: number;
+  y: number;
+}
+
+export function spawnPiece(type: PieceType): ActivePiece {
+  const shape = SHAPES[type].map((row) => [...row]);
+  const x = Math.floor((COLS - shape[0].length) / 2);
+  const y = type === "I" ? -1 : 0;
+  return { type, shape, x, y };
+}
+
+export function collides(
+  board: Board,
+  shape: number[][],
+  x: number,
+  y: number,
+): boolean {
+  for (let r = 0; r < shape.length; r++) {
+    for (let c = 0; c < shape[r].length; c++) {
+      if (!shape[r][c]) continue;
+      const bx = x + c;
+      const by = y + r;
+      if (bx < 0 || bx >= COLS || by >= ROWS) return true;
+      if (by >= 0 && board[by][bx] !== 0) return true;
+    }
+  }
+  return false;
+}
+
+export function rotateCW(m: number[][]): number[][] {
+  const n = m.length;
+  const out = Array.from({ length: n }, () => Array<number>(n).fill(0));
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      out[c][n - 1 - r] = m[r][c];
+    }
+  }
+  return out;
+}
+
+export function rotateCCW(m: number[][]): number[][] {
+  const n = m.length;
+  const out = Array.from({ length: n }, () => Array<number>(n).fill(0));
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      out[n - 1 - c][r] = m[r][c];
+    }
+  }
+  return out;
+}
+
+const KICKS = [0, -1, 1, -2, 2];
+
+export function tryRotate(
+  board: Board,
+  piece: ActivePiece,
+  dir: 1 | -1,
+): boolean {
+  const rotated = dir === 1 ? rotateCW(piece.shape) : rotateCCW(piece.shape);
+  for (const k of KICKS) {
+    if (!collides(board, rotated, piece.x + k, piece.y)) {
+      piece.shape = rotated;
+      piece.x += k;
+      return true;
+    }
+  }
+  return false;
+}
+
+export function ghostY(
+  board: Board,
+  shape: number[][],
+  x: number,
+  y: number,
+): number {
+  let gy = y;
+  while (!collides(board, shape, x, gy + 1)) gy++;
+  return gy;
+}
+
+export function lockPiece(board: Board, piece: ActivePiece): boolean {
+  let over = false;
+  for (let r = 0; r < piece.shape.length; r++) {
+    for (let c = 0; c < piece.shape[r].length; c++) {
+      if (!piece.shape[r][c]) continue;
+      const by = piece.y + r;
+      const bx = piece.x + c;
+      if (by < 0) {
+        over = true;
+        continue;
+      }
+      board[by][bx] = piece.type;
+    }
+  }
+  return over;
+}
+
+export function clearLines(board: Board): number {
+  const remaining = board.filter((row) => row.some((cell) => cell === 0));
+  const cleared = ROWS - remaining.length;
+  while (remaining.length < ROWS) {
+    remaining.unshift(Array<Cell>(COLS).fill(0));
+  }
+  for (let r = 0; r < ROWS; r++) {
+    board[r] = remaining[r];
+  }
+  return cleared;
+}
+
+export const LINE_SCORES = [0, 100, 300, 500, 800];
+
+export function levelSpeed(level: number): number {
+  return Math.max(60, Math.round(900 * Math.pow(0.82, level - 1)));
+}
+
+export function levelFromLines(lines: number): number {
+  return Math.floor(lines / 10) + 1;
+}
+
+export type Status = "playing" | "paused" | "over";
+
+export interface GameState {
+  board: Board;
+  current: ActivePiece;
+  queue: PieceType[];
+  hold: PieceType | null;
+  canHold: boolean;
+  score: number;
+  lines: number;
+  level: number;
+  status: Status;
+}
+
+export function initGame(): GameState {
+  const queue: PieceType[] = [];
+  const first = drawFromBag(queue);
+  queue.push(drawFromBag(queue), drawFromBag(queue), drawFromBag(queue));
+  return {
+    board: createBoard(),
+    current: spawnPiece(first),
+    queue,
+    hold: null,
+    canHold: true,
+    score: 0,
+    lines: 0,
+    level: 1,
+    status: "playing",
+  };
+}
+
+export function moveLeft(s: GameState): void {
+  if (!collides(s.board, s.current.shape, s.current.x - 1, s.current.y)) {
+    s.current.x--;
+  }
+}
+
+export function moveRight(s: GameState): void {
+  if (!collides(s.board, s.current.shape, s.current.x + 1, s.current.y)) {
+    s.current.x++;
+  }
+}
+
+export function softDrop(s: GameState): void {
+  if (!collides(s.board, s.current.shape, s.current.x, s.current.y + 1)) {
+    s.current.y++;
+    s.score++;
+  }
+}
+
+export function lock(s: GameState): void {
+  const over = lockPiece(s.board, s.current);
+  if (over) {
+    s.status = "over";
+    return;
+  }
+  const cleared = clearLines(s.board);
+  s.lines += cleared;
+  s.score += LINE_SCORES[cleared] * s.level;
+  s.level = levelFromLines(s.lines);
+
+  const nextType = drawFromBag(s.queue);
+  s.current = spawnPiece(nextType);
+  s.canHold = true;
+
+  if (collides(s.board, s.current.shape, s.current.x, s.current.y)) {
+    s.status = "over";
+  }
+}
+
+export function hardDrop(s: GameState): void {
+  const gy = ghostY(s.board, s.current.shape, s.current.x, s.current.y);
+  const delta = gy - s.current.y;
+  s.current.y = gy;
+  s.score += delta * 2;
+  lock(s);
+}
+
+export function gravityTick(s: GameState): void {
+  if (!collides(s.board, s.current.shape, s.current.x, s.current.y + 1)) {
+    s.current.y++;
+  } else {
+    lock(s);
+  }
+}
+
+export function rotate(s: GameState, dir: 1 | -1): void {
+  tryRotate(s.board, s.current, dir);
+}
+
+export function hold(s: GameState): void {
+  if (!s.canHold) return;
+  const prev = s.hold;
+  s.hold = s.current.type;
+  s.current = prev ? spawnPiece(prev) : spawnPiece(drawFromBag(s.queue));
+  s.canHold = false;
+  if (collides(s.board, s.current.shape, s.current.x, s.current.y)) {
+    s.status = "over";
+  }
+}
