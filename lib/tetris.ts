@@ -167,8 +167,8 @@ export function lockPiece(board: Board, piece: ActivePiece): boolean {
       if (!piece.shape[r][c]) continue;
       const by = piece.y + r;
       const bx = piece.x + c;
-      if (by < 0) {
-        over = true;
+      if (by < 0 || by >= ROWS) {
+        if (by < 0) over = true;
         continue;
       }
       board[by][bx] = piece.type;
@@ -201,10 +201,13 @@ export function levelFromLines(lines: number): number {
 
 export type Status = "playing" | "paused" | "over";
 
+export const PREVIEW_COUNT = 3;
+
 export interface GameState {
   board: Board;
   current: ActivePiece;
   queue: PieceType[];
+  bag: PieceType[];
   hold: PieceType | null;
   canHold: boolean;
   score: number;
@@ -213,14 +216,23 @@ export interface GameState {
   status: Status;
 }
 
+function topUpQueue(queue: PieceType[], bag: PieceType[]) {
+  while (queue.length < PREVIEW_COUNT) {
+    queue.push(drawFromBag(bag));
+  }
+}
+
 export function initGame(): GameState {
+  const bag: PieceType[] = [];
   const queue: PieceType[] = [];
-  const first = drawFromBag(queue);
-  queue.push(drawFromBag(queue), drawFromBag(queue), drawFromBag(queue));
+  for (let i = 0; i < PREVIEW_COUNT + 1; i++) {
+    queue.push(drawFromBag(bag));
+  }
   return {
     board: createBoard(),
-    current: spawnPiece(first),
+    current: spawnPiece(queue.shift()!),
     queue,
+    bag,
     hold: null,
     canHold: true,
     score: 0,
@@ -260,8 +272,9 @@ export function lock(s: GameState): void {
   s.score += LINE_SCORES[cleared] * s.level;
   s.level = levelFromLines(s.lines);
 
-  const nextType = drawFromBag(s.queue);
+  const nextType = s.queue.shift()!;
   s.current = spawnPiece(nextType);
+  topUpQueue(s.queue, s.bag);
   s.canHold = true;
 
   if (collides(s.board, s.current.shape, s.current.x, s.current.y)) {
@@ -293,7 +306,8 @@ export function hold(s: GameState): void {
   if (!s.canHold) return;
   const prev = s.hold;
   s.hold = s.current.type;
-  s.current = prev ? spawnPiece(prev) : spawnPiece(drawFromBag(s.queue));
+  s.current = prev ? spawnPiece(prev) : spawnPiece(s.queue.shift()!);
+  topUpQueue(s.queue, s.bag);
   s.canHold = false;
   if (collides(s.board, s.current.shape, s.current.x, s.current.y)) {
     s.status = "over";

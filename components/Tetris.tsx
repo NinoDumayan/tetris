@@ -16,6 +16,7 @@ import {
   moveRight,
   rotate,
   softDrop,
+  PREVIEW_COUNT,
   type GameState,
   type PieceType,
   type Status,
@@ -261,7 +262,7 @@ export default function Tetris() {
       drawPreviewShape(holdCtx, 100, 0, 60, s.hold);
 
       nextCtx.clearRect(0, 0, 100, 220);
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < PREVIEW_COUNT; i++) {
         drawPreviewShape(nextCtx, 100, 6 + i * 72, 66, s.queue[i] ?? null);
       }
       syncHud();
