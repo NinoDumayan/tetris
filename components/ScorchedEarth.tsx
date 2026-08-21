@@ -359,14 +359,14 @@ export default function ScorchedEarth() {
 
   if (!mode) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
-        <h1 className="neon-title text-3xl tracking-[0.2em]">SCORCHED EARTH</h1>
-        <p className="text-sm text-slate-400">Artillery warfare — aim, fire, destroy.</p>
-        <div className="flex gap-4">
-          <button className="neon-btn" onClick={() => startMode("1p")}>
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 p-4 sm:p-8">
+        <h1 className="neon-title text-2xl tracking-[0.2em] sm:text-3xl">SCORCHED EARTH</h1>
+        <p className="text-center text-xs text-slate-400 sm:text-sm">Artillery warfare — aim, fire, destroy.</p>
+        <div className="flex gap-3 sm:gap-4">
+          <button className="neon-btn text-xs sm:text-sm" onClick={() => startMode("1p")}>
             1P vs AI
           </button>
-          <button className="neon-btn" onClick={() => startMode("2p")}>
+          <button className="neon-btn text-xs sm:text-sm" onClick={() => startMode("2p")}>
             2P Hot-seat
           </button>
         </div>
@@ -377,25 +377,25 @@ export default function ScorchedEarth() {
   const isP1Turn = hud.currentPlayer === 0 && hud.phase === "aim";
 
   return (
-    <div className="flex flex-1 flex-col items-center gap-3 p-4">
-      <div className="flex w-full max-w-[800px] items-center justify-between">
-        <div className={`panel px-3 py-2 text-sm ${hud.currentPlayer === 0 ? "ring-1 ring-cyan-400" : ""}`}>
+    <div className="flex flex-1 flex-col items-center gap-3 p-2 sm:p-4">
+      <div className="flex w-full max-w-[800px] items-center justify-between gap-2">
+        <div className={`panel px-2 py-1 text-xs sm:px-3 sm:py-2 sm:text-sm ${hud.currentPlayer === 0 ? "ring-1 ring-cyan-400" : ""}`}>
           <span className="label mr-2">P1</span>
           <span className="value">{hud.p1hp}</span>
-          <span className="ml-2 text-xs text-slate-500">
+          <span className="ml-2 text-[10px] text-slate-500 sm:text-xs">
             {WEAPONS[hud.p1weapon].label}
             {hud.p1weapon !== "cannon" && ` ×${hud.p1ammo[hud.p1weapon]}`}
           </span>
         </div>
-        <div className="text-center">
+        <div className="min-w-0 flex-1 text-center">
           {hud.message && (
-            <p className="text-xs text-yellow-400">{hud.message}</p>
+            <p className="truncate text-[10px] text-yellow-400 sm:text-xs">{hud.message}</p>
           )}
         </div>
-        <div className={`panel px-3 py-2 text-sm ${hud.currentPlayer === 1 ? "ring-1 ring-rose-400" : ""}`}>
+        <div className={`panel px-2 py-1 text-xs sm:px-3 sm:py-2 sm:text-sm ${hud.currentPlayer === 1 ? "ring-1 ring-rose-400" : ""}`}>
           <span className="label mr-2">P2</span>
           <span className="value">{hud.p2hp}</span>
-          <span className="ml-2 text-xs text-slate-500">
+          <span className="ml-2 text-[10px] text-slate-500 sm:text-xs">
             {WEAPONS[hud.p2weapon].label}
             {hud.p2weapon !== "cannon" && ` ×${hud.p2ammo[hud.p2weapon]}`}
           </span>
@@ -405,7 +405,7 @@ export default function ScorchedEarth() {
       <canvas
         ref={canvasRef}
         className="max-w-full rounded border border-slate-800"
-        style={{ cursor: isP1Turn ? "crosshair" : "default" }}
+        style={{ touchAction: "none", cursor: isP1Turn ? "crosshair" : "default" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

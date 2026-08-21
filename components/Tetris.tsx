@@ -29,12 +29,18 @@ const BOARD_W = COLS * CELL;
 const BOARD_H = ROWS * CELL;
 const PREVIEW_CELL = 22;
 
-function fitCanvas(canvas: HTMLCanvasElement, w: number, h: number) {
+function fitCanvas(canvas: HTMLCanvasElement, w: number, h: number, responsive = false) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
-  canvas.style.width = `${w}px`;
-  canvas.style.height = `${h}px`;
+  if (responsive) {
+    canvas.style.width = `min(${w}px, 100vw - 1rem)`;
+    canvas.style.height = `auto`;
+    canvas.style.aspectRatio = `${w} / ${h}`;
+  } else {
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+  }
   const ctx = canvas.getContext("2d")!;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   return ctx;
@@ -166,6 +172,7 @@ interface Hud {
   lines: number;
   level: number;
   status: Status;
+  nextPiece: string;
 }
 
 export default function Tetris() {
@@ -194,13 +201,14 @@ export default function Tetris() {
   };
 
   const stateRef = useRef<GameState>(initGame());
-  const prevHud = useRef<Hud>({ score: 0, lines: 0, level: 1, status: "playing" });
+  const prevHud = useRef<Hud>({ score: 0, lines: 0, level: 1, status: "playing", nextPiece: "" });
   const timersRef = useRef<Map<string, { t: number; i: number }>>(new Map());
   const [hud, setHud] = useState<Hud>({
     score: 0,
     lines: 0,
     level: 1,
     status: "playing",
+    nextPiece: "",
   });
 
   const syncHud = () => {
@@ -210,13 +218,15 @@ export default function Tetris() {
       lines: s.lines,
       level: s.level,
       status: s.status,
+      nextPiece: s.queue[0]?.toUpperCase() ?? "",
     };
     const p = prevHud.current;
     if (
       next.score !== p.score ||
       next.lines !== p.lines ||
       next.level !== p.level ||
-      next.status !== p.status
+      next.status !== p.status ||
+      next.nextPiece !== p.nextPiece
     ) {
       prevHud.current = next;
       setHud(next);
@@ -262,7 +272,7 @@ export default function Tetris() {
     const timers = timersRef.current;
     if (!boardCanvas || !holdCanvas || !nextCanvas) return;
 
-    const boardCtx = fitCanvas(boardCanvas, BOARD_W, BOARD_H);
+    const boardCtx = fitCanvas(boardCanvas, BOARD_W, BOARD_H, true);
     const holdCtx = fitCanvas(holdCanvas, 100, 60);
     const nextCtx = fitCanvas(nextCanvas, 100, 220);
 
@@ -476,11 +486,11 @@ let raf = 0;
   const overlay = hud.status !== "playing";
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-5 p-4">
-      <h1 className="neon-title text-4xl tracking-[0.35em]">TETRIS</h1>
+    <main className="flex min-h-dvh flex-col items-center gap-3 p-2 sm:gap-5 sm:p-4">
+      <h1 className="neon-title text-3xl tracking-[0.35em] sm:text-4xl">TETRIS</h1>
 
-      <div className="flex items-start gap-4">
-        <aside className="panel flex w-[124px] flex-col gap-4 p-3">
+      <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-start sm:gap-4">
+        <aside className="panel hidden w-[124px] flex-col gap-4 p-3 sm:flex">
           <div>
             <p className="label">HOLD</p>
             <canvas ref={holdRef} className="mt-1 block" />
@@ -500,47 +510,76 @@ let raf = 0;
           </div>
         </aside>
 
-        <div className="relative">
-          <canvas
-            ref={boardRef}
-            className="block rounded-md border border-slate-700/70 shadow-[0_0_40px_rgba(34,211,238,0.15)]"
-          />
-          {overlay && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 rounded-md bg-slate-950/80 backdrop-blur-sm">
-              <p className="neon-title text-3xl">
-                {hud.status === "over" ? "GAME OVER" : "PAUSED"}
-              </p>
-              {hud.status === "over" && (
-                <p className="value text-center">
-                  Score {hud.score.toLocaleString()}
-                  <br />
-                  Level {hud.level} · {hud.lines} lines
-                </p>
-              )}
-              <button
-                onClick={hud.status === "over" ? restart : togglePause}
-                className="neon-btn"
-              >
-                {hud.status === "over" ? "PLAY AGAIN" : "RESUME"}
-              </button>
-              {hud.status === "paused" && (
-                <button onClick={restart} className="neon-btn ghost">
-                  RESTART
-                </button>
-              )}
+        <div className="flex flex-col items-center gap-2 sm:contents">
+          <div className="panel flex w-full max-w-[320px] items-center justify-between px-3 py-2 text-xs sm:hidden">
+            <div className="flex items-center gap-2">
+              <span className="label">HOLD</span>
+              <div className="flex items-center gap-4">
+                <div>
+                  <span className="label">SCORE </span>
+                  <span className="value text-xs">{hud.score.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="label">LVL </span>
+                  <span className="value text-xs">{hud.level}</span>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-
-        <aside className="panel flex w-[124px] flex-col gap-3 p-3">
-          <div>
-            <p className="label">NEXT</p>
-            <canvas ref={nextRef} className="mt-1 block" />
           </div>
-        </aside>
+
+          <div className="relative w-full max-w-[320px]">
+            <canvas
+              ref={boardRef}
+              className="block w-full rounded-md border border-slate-700/70 shadow-[0_0_40px_rgba(34,211,238,0.15)]"
+            />
+            {overlay && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 rounded-md bg-slate-950/80 backdrop-blur-sm">
+                <p className="neon-title text-2xl sm:text-3xl">
+                  {hud.status === "over" ? "GAME OVER" : "PAUSED"}
+                </p>
+                {hud.status === "over" && (
+                  <p className="value text-center text-sm">
+                    Score {hud.score.toLocaleString()}
+                    <br />
+                    Level {hud.level} · {hud.lines} lines
+                  </p>
+                )}
+                <button
+                  onClick={hud.status === "over" ? restart : togglePause}
+                  className="neon-btn"
+                >
+                  {hud.status === "over" ? "PLAY AGAIN" : "RESUME"}
+                </button>
+                {hud.status === "paused" && (
+                  <button onClick={restart} className="neon-btn ghost">
+                    RESTART
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="panel hidden w-[124px] flex-col gap-3 p-3 sm:flex">
+            <div>
+              <p className="label">NEXT</p>
+              <canvas ref={nextRef} className="mt-1 block" />
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="flex max-w-[520px] flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] tracking-wide text-slate-400">
+      <div className="panel flex w-full max-w-[320px] items-center justify-between px-3 py-2 text-xs sm:hidden">
+        <div>
+          <span className="label">NEXT </span>
+          <span className="value text-xs">{hud.nextPiece ?? "—"}</span>
+        </div>
+        <div>
+          <span className="label">LINES </span>
+          <span className="value text-xs">{hud.lines}</span>
+        </div>
+      </div>
+
+      <div className="hidden max-w-[520px] flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] tracking-wide text-slate-400 sm:flex">
         <span>← → move</span>
         <span>↓ soft drop</span>
         <span>↑ / X rotate</span>
