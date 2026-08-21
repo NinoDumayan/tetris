@@ -550,6 +550,89 @@ let raf = 0;
         <span>P pause</span>
         <span>R restart</span>
       </div>
+
+      <div className="mobile-controls">
+        <div className="mobile-row">
+          <button
+            className="mobile-btn"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              if (stateRef.current.status !== "playing") return;
+              moveLeft(stateRef.current);
+              startRepeat("ArrowLeft", () => moveLeft(stateRef.current));
+            }}
+            onPointerUp={() => stopRepeat("ArrowLeft")}
+            onPointerLeave={() => stopRepeat("ArrowLeft")}
+          >
+            ◀
+          </button>
+          <button
+            className="mobile-btn"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              if (stateRef.current.status !== "playing") return;
+              softDrop(stateRef.current);
+              startRepeat("ArrowDown", () => softDrop(stateRef.current));
+            }}
+            onPointerUp={() => stopRepeat("ArrowDown")}
+            onPointerLeave={() => stopRepeat("ArrowDown")}
+          >
+            ▼
+          </button>
+          <button
+            className="mobile-btn"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              if (stateRef.current.status !== "playing") return;
+              moveRight(stateRef.current);
+              startRepeat("ArrowRight", () => moveRight(stateRef.current));
+            }}
+            onPointerUp={() => stopRepeat("ArrowRight")}
+            onPointerLeave={() => stopRepeat("ArrowRight")}
+          >
+            ▶
+          </button>
+        </div>
+        <div className="mobile-row">
+          <button
+            className="mobile-btn accent"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              if (stateRef.current.status !== "playing") return;
+              rotate(stateRef.current, 1);
+            }}
+          >
+            ↻
+          </button>
+          <button
+            className="mobile-btn accent"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              if (stateRef.current.status !== "playing") return;
+              hardDrop(stateRef.current);
+              playDropSound();
+            }}
+          >
+            ⏬
+          </button>
+          <button
+            className="mobile-btn accent"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              if (stateRef.current.status !== "playing") return;
+              holdPiece(stateRef.current);
+            }}
+          >
+            ⇄
+          </button>
+          <button
+            className="mobile-btn small"
+            onClick={togglePause}
+          >
+            ❚❚
+          </button>
+        </div>
+      </div>
     </main>
   );
 }
