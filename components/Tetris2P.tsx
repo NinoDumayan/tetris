@@ -467,13 +467,17 @@ export default function Tetris2P() {
     channel.bind("state-update", (data: { state: Record<string, unknown> }) => {
       if (data.state) applyOpponentState(data.state);
     });
-    channel.bind("piece-update", (data: { role: string; piece: { type: PieceType; shape: number[][]; x: number; y: number } }) => {
+    channel.bind("piece-update", (data: { role: string; piece: { type: PieceType; shape: number[][]; x: number; y: number } | null }) => {
       if (data.role !== role) {
-        oppPieceRef.current = {
-          ...data.piece,
-          timestamp: performance.now(),
-          level: oppRef.current.level || 1,
-        };
+        if (data.piece) {
+          oppPieceRef.current = {
+            ...data.piece,
+            timestamp: performance.now(),
+            level: oppRef.current.level || 1,
+          };
+        } else {
+          oppPieceRef.current = null;
+        }
       }
     });
     channel.bind("pusher:subscription_error", () => {});
@@ -552,10 +556,7 @@ export default function Tetris2P() {
 
       const oppPiece = oppPieceRef.current;
       if (oppPiece) {
-        const elapsed = performance.now() - oppPiece.timestamp;
-        const speed = levelSpeed(oppPiece.level);
-        const predictedY = oppPiece.y + Math.floor(elapsed / speed);
-        drawShape(oppCtx, oppPiece.shape, oppPiece.x * CELL, predictedY * CELL, oppPiece.type, CELL, true);
+        drawShape(oppCtx, oppPiece.shape, oppPiece.x * CELL, oppPiece.y * CELL, oppPiece.type, CELL, true);
         drawShape(oppCtx, oppPiece.shape, oppPiece.x * CELL, oppPiece.y * CELL, oppPiece.type, CELL);
       }
 
