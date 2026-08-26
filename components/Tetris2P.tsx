@@ -191,6 +191,7 @@ export default function Tetris2P() {
   const clearPlayedRef = useRef(false);
   const pendingGarbageRef = useRef(0);
   const syncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fallbackPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const playDropSound = () => {
     if (!dropSoundRef.current) {
@@ -436,10 +437,24 @@ export default function Tetris2P() {
       .catch(() => {});
 
     const pusher = getPusherClient();
+    pusher.connection.bind("state_change", (state: { current: string }) => {
+      if (state.current === "failed") {
+        pusher.connect();
+      }
+    });
     const channel = pusher.subscribe(`game-${roomCode}`);
     channel.bind("state-update", (data: { state: Record<string, unknown> }) => {
       if (data.state) applyOpponentState(data.state);
     });
+    channel.bind("pusher:subscription_error", () => {});
+
+    fallbackPollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/sync/${roomCode}`);
+        const data = await res.json();
+        if (data.state) applyOpponentState(data.state);
+      } catch {}
+    }, 500);
 
     const render = () => {
       const s = stateRef.current;
@@ -491,13 +506,15 @@ export default function Tetris2P() {
       if (s.hold) drawMiniPiece(holdCtx, s.hold, PREVIEW_CELL);
 
       nextCtx.clearRect(0, 0, 100, 160);
-      for (let i = 0; i < Math.min(PREVIEW_COUNT, s.queue.length); i++) {
+      const count = Math.min(PREVIEW_COUNT, s.queue.length);
+      const slotH = 160 / count;
+      for (let i = 0; i < count; i++) {
         const type = s.queue[i];
         const shape = SHAPES[type];
         const cols = shape[0].length;
         const rows = shape.length;
         const ox = (100 - cols * PREVIEW_CELL) / 2;
-        const oy = i * 50 + (50 - rows * PREVIEW_CELL) / 2;
+        const oy = i * slotH + (slotH - rows * PREVIEW_CELL) / 2;
         drawShape(nextCtx, shape, ox, oy, type, PREVIEW_CELL);
       }
 
@@ -550,6 +567,7 @@ export default function Tetris2P() {
     return () => {
       cancelAnimationFrame(rafRef.current);
       if (syncTimerRef.current) clearInterval(syncTimerRef.current);
+      if (fallbackPollRef.current) clearInterval(fallbackPollRef.current);
       channel.unbind_all();
       pusher.unsubscribe(`game-${roomCode}`);
     };

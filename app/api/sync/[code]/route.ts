@@ -82,8 +82,12 @@ export async function POST(
 
   try {
     const pusher = getPusherServer();
-    await pusher.trigger(`game-${code}`, "state-update", { state: updated[0] });
-  } catch {}
+    if (pusher) {
+      await pusher.trigger(`game-${code}`, "state-update", { state: updated[0] });
+    }
+  } catch (e) {
+    console.error("Pusher trigger failed:", e);
+  }
 
   return NextResponse.json({ state: updated[0] });
 }
