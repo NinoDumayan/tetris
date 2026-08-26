@@ -637,7 +637,7 @@ export default function Tetris2P() {
             if (playing && !e.repeat) { hardDrop(s); playDropSound(); }
             break;
           case "ShiftRight":
-          case "KeyZ":
+          case "KeyC":
             if (playing && !e.repeat) holdPiece(s);
             break;
         }

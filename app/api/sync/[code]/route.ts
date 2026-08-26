@@ -62,7 +62,7 @@ export async function POST(
         host_lines = ${lines},
         host_level = ${level},
         host_status = ${status},
-        host_garbage = ${garbage},
+        guest_garbage = guest_garbage + ${garbage},
         updated_at = NOW()
       WHERE code = ${code}`;
   } else {
@@ -73,7 +73,7 @@ export async function POST(
         guest_lines = ${lines},
         guest_level = ${level},
         guest_status = ${status},
-        guest_garbage = ${garbage},
+        host_garbage = host_garbage + ${garbage},
         updated_at = NOW()
       WHERE code = ${code}`;
   }
