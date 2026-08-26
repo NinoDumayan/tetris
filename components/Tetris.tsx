@@ -181,6 +181,8 @@ export default function Tetris() {
   const nextRef = useRef<HTMLCanvasElement>(null);
   const dropSoundRef = useRef<HTMLAudioElement | null>(null);
   const unevenSoundRef = useRef<HTMLAudioElement | null>(null);
+  const clearSoundRef = useRef<HTMLAudioElement | null>(null);
+  const clearPlayedRef = useRef(false);
 
   const playDropSound = () => {
     if (!dropSoundRef.current) {
@@ -196,6 +198,15 @@ export default function Tetris() {
       unevenSoundRef.current = new Audio("/sounds/aray-koooo-1.mp3");
     }
     const audio = unevenSoundRef.current;
+    audio.currentTime = 0;
+    void audio.play().catch(() => {});
+  };
+
+  const playClearSound = () => {
+    if (!clearSoundRef.current) {
+      clearSoundRef.current = new Audio("/sounds/malupiton-boss-2.mp3");
+    }
+    const audio = clearSoundRef.current;
     audio.currentTime = 0;
     void audio.play().catch(() => {});
   };
@@ -255,6 +266,7 @@ export default function Tetris() {
 
   const restart = () => {
     stateRef.current = initGame();
+    clearPlayedRef.current = false;
     syncHud();
   };
 
@@ -447,9 +459,14 @@ let raf = 0;
       const s = stateRef.current;
       if (s.status === "playing") {
         if (s.clearing) {
+          if (!clearPlayedRef.current) {
+            clearPlayedRef.current = true;
+            playClearSound();
+          }
           s.clearing.remaining -= dt;
           if (s.clearing.remaining <= 0) {
             finalizeClear(s);
+            clearPlayedRef.current = false;
           }
         } else {
           acc += dt;

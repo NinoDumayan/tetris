@@ -5,7 +5,8 @@ export type PieceType = "I" | "O" | "T" | "S" | "Z" | "J" | "L";
 
 export const TYPES: PieceType[] = ["I", "O", "T", "S", "Z", "J", "L"];
 
-export const COLORS: Record<PieceType, string> = {
+export const COLORS: Record<Cell, string> = {
+  0: "#05070f",
   I: "#22d3ee",
   O: "#fde047",
   T: "#c084fc",
@@ -13,6 +14,7 @@ export const COLORS: Record<PieceType, string> = {
   Z: "#f87171",
   J: "#60a5fa",
   L: "#fb923c",
+  G: "#64748b",
 };
 
 export const SHAPES: Record<PieceType, number[][]> = {
@@ -53,7 +55,7 @@ export const SHAPES: Record<PieceType, number[][]> = {
   ],
 };
 
-export type Cell = 0 | PieceType;
+export type Cell = 0 | PieceType | "G";
 
 export type Board = Cell[][];
 
@@ -308,14 +310,15 @@ function spawnNext(s: GameState): void {
   }
 }
 
-export function finalizeClear(s: GameState): void {
-  if (!s.clearing) return;
+export function finalizeClear(s: GameState): number {
+  if (!s.clearing) return 0;
   const cleared = clearLines(s.board);
   s.lines += cleared;
   s.score += LINE_SCORES[cleared] * s.level;
   s.level = levelFromLines(s.lines);
   s.clearing = null;
   spawnNext(s);
+  return cleared;
 }
 
 export function lock(s: GameState): void {
@@ -366,5 +369,36 @@ export function hold(s: GameState): void {
   s.canHold = false;
   if (collides(s.board, s.current.shape, s.current.x, s.current.y)) {
     s.status = "over";
+  }
+}
+
+export function calcGarbage(linesCleared: number): number {
+  if (linesCleared <= 1) return 0;
+  if (linesCleared === 2) return 1;
+  if (linesCleared === 3) return 2;
+  return 4;
+}
+
+export function receiveGarbage(board: Board, count: number): void {
+  for (let i = 0; i < count; i++) {
+    board.shift();
+    const gap = Math.floor(Math.random() * COLS);
+    const row: Cell[] = [];
+    for (let c = 0; c < COLS; c++) {
+      row.push(c === gap ? 0 : "G");
+    }
+    board.push(row);
+  }
+}
+
+export function getBoardState(board: Board): (string | number)[][] {
+  return board.map((row) => [...row]);
+}
+
+export function setBoardState(board: Board, state: (string | number)[][]): void {
+  for (let r = 0; r < ROWS; r++) {
+    if (state[r]) {
+      board[r] = [...state[r]] as Cell[];
+    }
   }
 }
