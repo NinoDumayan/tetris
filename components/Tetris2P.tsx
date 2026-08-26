@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { getPusherClient } from "@/lib/pusher-client";
 import {
   COLS,
   COLORS,
@@ -190,7 +191,6 @@ export default function Tetris2P() {
   const clearPlayedRef = useRef(false);
   const pendingGarbageRef = useRef(0);
   const syncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const playDropSound = () => {
     if (!dropSoundRef.current) {
@@ -309,29 +309,23 @@ export default function Tetris2P() {
     } catch {}
   }, [roomCode, role]);
 
-  const pollOpponent = useCallback(async () => {
-    if (!roomCode || !role) return;
-    try {
-      const res = await fetch(`/api/sync/${roomCode}`);
-      const data = await res.json();
-      if (data.state) {
-        const oppBoard = role === "host" ? data.state.guest_board : data.state.host_board;
-        const oppScore = role === "host" ? data.state.guest_score : data.state.host_score;
-        const oppLines = role === "host" ? data.state.guest_lines : data.state.host_lines;
-        const oppLevel = role === "host" ? data.state.guest_level : data.state.host_level;
-        const oppStatus = role === "host" ? data.state.guest_status : data.state.host_status;
+  const applyOpponentState = useCallback((st: Record<string, unknown>) => {
+    const isHost = role === "host";
+    const oppBoard = isHost ? st.guest_board : st.host_board;
+    const oppScore = isHost ? st.guest_score : st.host_score;
+    const oppLines = isHost ? st.guest_lines : st.host_lines;
+    const oppLevel = isHost ? st.guest_level : st.host_level;
+    const oppStatus = isHost ? st.guest_status : st.host_status;
 
-        setOpp((prev) => ({
-          ...prev,
-          board: oppBoard || [],
-          score: oppScore || 0,
-          lines: oppLines || 0,
-          level: oppLevel || 1,
-          status: oppStatus || "playing",
-        }));
-      }
-    } catch {}
-  }, [roomCode, role]);
+    setOpp({
+      board: (oppBoard as (string | number)[][]) || [],
+      score: (oppScore as number) || 0,
+      lines: (oppLines as number) || 0,
+      level: (oppLevel as number) || 1,
+      status: (oppStatus as string as Status) || "playing",
+      garbage: 0,
+    });
+  }, [role]);
 
   const waitForOpponent = useCallback(async () => {
     if (!roomCode) return;
@@ -435,7 +429,17 @@ export default function Tetris2P() {
     let acc = 0;
 
     syncTimerRef.current = setInterval(syncToServer, SYNC_INTERVAL);
-    pollTimerRef.current = setInterval(pollOpponent, SYNC_INTERVAL * 2);
+
+    fetch(`/api/sync/${roomCode}`)
+      .then((r) => r.json())
+      .then((data) => { if (data.state) applyOpponentState(data.state); })
+      .catch(() => {});
+
+    const pusher = getPusherClient();
+    const channel = pusher.subscribe(`game-${roomCode}`);
+    channel.bind("state-update", (data: { state: Record<string, unknown> }) => {
+      if (data.state) applyOpponentState(data.state);
+    });
 
     const render = () => {
       const s = stateRef.current;
@@ -546,9 +550,10 @@ export default function Tetris2P() {
     return () => {
       cancelAnimationFrame(rafRef.current);
       if (syncTimerRef.current) clearInterval(syncTimerRef.current);
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      pusher.unsubscribe(`game-${roomCode}`);
+      pusher.disconnect();
     };
-  }, [phase, roomCode, role, opp.board.length, syncToServer, pollOpponent]);
+  }, [phase, roomCode, role, opp.board.length, syncToServer, applyOpponentState]);
 
   useEffect(() => {
     if (phase !== "playing") return;
@@ -730,6 +735,11 @@ export default function Tetris2P() {
           </div>
           <div className="h-px bg-slate-700/60" />
           <div>
+            <p className="label">NEXT</p>
+            <canvas ref={nextRef} className="mt-1 block" />
+          </div>
+          <div className="h-px bg-slate-700/60" />
+          <div>
             <p className="label">SCORE</p>
             <p className="value text-xs">{hud.score.toLocaleString()}</p>
           </div>
@@ -750,22 +760,15 @@ export default function Tetris2P() {
           />
         </div>
 
-        <div className="panel hidden w-[100px] flex-col gap-3 p-2 sm:flex">
-          <div>
-            <p className="label">NEXT</p>
-            <canvas ref={nextRef} className="mt-1 block" />
-          </div>
-          <div className="h-px bg-slate-700/60" />
-          <div>
-            <p className="label text-center">OPPONENT</p>
-            <canvas
-              ref={oppBoardRef}
-              className="mt-1 block rounded border border-slate-700/50"
-            />
-            <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-              <span>Lv.{opp.level}</span>
-              <span>{opp.lines}L</span>
-            </div>
+        <div className="panel hidden w-[100px] flex-col gap-2 p-2 sm:flex">
+          <p className="label text-center">OPPONENT</p>
+          <canvas
+            ref={oppBoardRef}
+            className="mt-1 block rounded border border-slate-700/50"
+          />
+          <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+            <span>Lv.{opp.level}</span>
+            <span>{opp.lines}L</span>
           </div>
         </div>
       </div>

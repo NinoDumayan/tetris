@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { query, initDB } from "@/lib/db";
+import { getPusherServer } from "@/lib/pusher-server";
 
 interface Room {
   code: string;
@@ -78,5 +79,11 @@ export async function POST(
   }
 
   const updated = await query<GameState>`SELECT * FROM game_state WHERE code = ${code}`;
+
+  try {
+    const pusher = getPusherServer();
+    await pusher.trigger(`game-${code}`, "state-update", { state: updated[0] });
+  } catch {}
+
   return NextResponse.json({ state: updated[0] });
 }
