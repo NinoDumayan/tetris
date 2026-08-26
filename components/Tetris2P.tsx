@@ -36,7 +36,6 @@ const BOARD_W = COLS * CELL;
 const BOARD_H = ROWS * CELL;
 const PREVIEW_CELL = 18;
 const SYNC_INTERVAL = 100;
-const OPP_CELL = 14;
 
 function fitCanvas(canvas: HTMLCanvasElement, w: number, h: number, responsive = false) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -422,9 +421,7 @@ export default function Tetris2P() {
     const boardCtx = fitCanvas(boardCanvas, BOARD_W, BOARD_H, true);
     const holdCtx = fitCanvas(holdCanvas, 100, 70);
     const nextCtx = fitCanvas(nextCanvas, 100, 160);
-    const oppCtx = oppCanvas.getContext("2d")!;
-    oppCanvas.width = Math.round(OPP_CELL * COLS * 2);
-    oppCanvas.height = Math.round(OPP_CELL * ROWS * 2);
+    const oppCtx = fitCanvas(oppCanvas, BOARD_W, BOARD_H, true);
 
     let last = 0;
     let acc = 0;
@@ -518,9 +515,7 @@ export default function Tetris2P() {
         drawShape(nextCtx, shape, ox, oy, type, PREVIEW_CELL);
       }
 
-      if (opp.board.length > 0) {
-        drawOpponentBoard(oppCtx, opp.board, OPP_CELL * COLS, OPP_CELL * ROWS);
-      }
+      drawOpponentBoard(oppCtx, opp.board, BOARD_W, BOARD_H);
 
       syncHud();
     };
@@ -745,7 +740,7 @@ export default function Tetris2P() {
         </div>
       </div>
 
-      <div className="flex items-start gap-3">
+      <div className="flex items-start justify-center gap-4">
         <aside className="panel hidden w-[100px] flex-col gap-3 p-2 sm:flex">
           <div>
             <p className="label">HOLD</p>
@@ -763,26 +758,27 @@ export default function Tetris2P() {
           </div>
           <div>
             <p className="label">LEVEL</p>
-            <p className="value text-xs">{hud.level}</p>
+            <p className="value text-xs">{hud.level.toLocaleString()}</p>
           </div>
           <div>
             <p className="label">LINES</p>
-            <p className="value text-xs">{hud.lines}</p>
+            <p className="value text-xs">{hud.lines.toLocaleString()}</p>
           </div>
         </aside>
 
         <div className="relative w-full max-w-[320px]">
+          <p className="label mb-1 text-center text-[10px]">{playerName}</p>
           <canvas
             ref={boardRef}
             className="block w-full rounded-md border border-slate-700/70 shadow-[0_0_40px_rgba(34,211,238,0.15)]"
           />
         </div>
 
-        <div className="panel hidden w-[100px] flex-col gap-2 p-2 sm:flex">
-          <p className="label text-center">OPPONENT</p>
+        <div className="relative w-full max-w-[320px]">
+          <p className="label mb-1 text-center text-[10px]">{opponentName || "Opponent"}</p>
           <canvas
             ref={oppBoardRef}
-            className="mt-1 block rounded border border-slate-700/50"
+            className="block w-full rounded-md border border-slate-700/70 shadow-[0_0_40px_rgba(244,63,94,0.15)]"
           />
           <div className="mt-1 flex justify-between text-[10px] text-slate-400">
             <span>Lv.{opp.level}</span>
@@ -798,7 +794,7 @@ export default function Tetris2P() {
       )}
       {role === "guest" && (
         <p className="text-[10px] text-slate-500">
-          WASD move · W/Q rotate · E ccw · Enter drop · Z hold
+          WASD move · W/Q rotate · E ccw · Enter drop · C hold
         </p>
       )}
     </div>
