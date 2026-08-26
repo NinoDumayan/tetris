@@ -261,6 +261,8 @@ export default function Tetris2P() {
   const syncToServer = useCallback(async () => {
     if (!roomCode || !role) return;
     const s = stateRef.current;
+    const garbageToSend = pendingGarbageRef.current;
+    if (garbageToSend > 0) pendingGarbageRef.current = 0;
     try {
       const res = await fetch(`/api/sync/${roomCode}`, {
         method: "POST",
@@ -272,17 +274,19 @@ export default function Tetris2P() {
           lines: s.lines,
           level: s.level,
           status: s.status,
-          garbage: pendingGarbageRef.current,
+          garbage: garbageToSend,
         }),
       });
       const data = await res.json();
       if (data.state) {
-        const oppBoard = role === "host" ? data.state.guest_board : data.state.host_board;
-        const oppScore = role === "host" ? data.state.guest_score : data.state.host_score;
-        const oppLines = role === "host" ? data.state.guest_lines : data.state.host_lines;
-        const oppLevel = role === "host" ? data.state.guest_level : data.state.host_level;
-        const oppStatus = role === "host" ? data.state.guest_status : data.state.host_status;
-        const oppGarbage = role === "host" ? data.state.host_garbage : data.state.guest_garbage;
+        const st = data.state;
+        const isHost = role === "host";
+        const oppBoard = isHost ? st.guest_board : st.host_board;
+        const oppScore = isHost ? st.guest_score : st.host_score;
+        const oppLines = isHost ? st.guest_lines : st.host_lines;
+        const oppLevel = isHost ? st.guest_level : st.host_level;
+        const oppStatus = isHost ? st.guest_status : st.host_status;
+        const myGarbage = isHost ? st.host_garbage : st.guest_garbage;
 
         setOpp({
           board: oppBoard || [],
@@ -290,18 +294,15 @@ export default function Tetris2P() {
           lines: oppLines || 0,
           level: oppLevel || 1,
           status: oppStatus || "playing",
-          garbage: oppGarbage || 0,
+          garbage: 0,
         });
 
-        if (oppGarbage > 0) {
-          receiveGarbage(s.board, oppGarbage);
+        if (myGarbage > 0) {
+          receiveGarbage(s.board, myGarbage);
           await fetch(`/api/garbage/${roomCode}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              role,
-              rows: -oppGarbage,
-            }),
+            body: JSON.stringify({ role, clear: myGarbage }),
           });
         }
       }
@@ -425,7 +426,7 @@ export default function Tetris2P() {
 
     const boardCtx = fitCanvas(boardCanvas, BOARD_W, BOARD_H, true);
     const holdCtx = fitCanvas(holdCanvas, 100, 60);
-    const nextCtx = fitCanvas(nextCanvas, 100, 60);
+    const nextCtx = fitCanvas(nextCanvas, 100, 90);
     const oppCtx = oppCanvas.getContext("2d")!;
     oppCanvas.width = Math.round(OPP_CELL * COLS * 2);
     oppCanvas.height = Math.round(OPP_CELL * ROWS * 2);
@@ -485,14 +486,14 @@ export default function Tetris2P() {
       holdCtx.clearRect(0, 0, 100, 60);
       if (s.hold) drawMiniPiece(holdCtx, s.hold, PREVIEW_CELL);
 
-      nextCtx.clearRect(0, 0, 100, 60);
+      nextCtx.clearRect(0, 0, 100, 90);
       for (let i = 0; i < Math.min(PREVIEW_COUNT, s.queue.length); i++) {
         const type = s.queue[i];
         const shape = SHAPES[type];
         const cols = shape[0].length;
         const rows = shape.length;
         const ox = (100 - cols * PREVIEW_CELL) / 2;
-        const oy = i * 24 + (24 - rows * PREVIEW_CELL) / 2;
+        const oy = i * 30 + (30 - rows * PREVIEW_CELL) / 2;
         drawShape(nextCtx, shape, ox, oy, type, PREVIEW_CELL);
       }
 
@@ -518,11 +519,6 @@ export default function Tetris2P() {
             const garbage = calcGarbage(cleared);
             if (garbage > 0) {
               pendingGarbageRef.current += garbage;
-              fetch(`/api/garbage/${roomCode}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ role, rows: garbage }),
-              }).catch(() => {});
             }
           }
         } else {
@@ -563,6 +559,36 @@ export default function Tetris2P() {
 
       if (role === "host") {
         switch (e.code) {
+          case "ArrowLeft":
+            e.preventDefault();
+            if (playing) { moveLeft(s); startRepeat("ArrowLeft", () => moveLeft(stateRef.current)); }
+            break;
+          case "ArrowRight":
+            e.preventDefault();
+            if (playing) { moveRight(s); startRepeat("ArrowRight", () => moveRight(stateRef.current)); }
+            break;
+          case "ArrowDown":
+            e.preventDefault();
+            if (playing) { softDrop(s); startRepeat("ArrowDown", () => softDrop(stateRef.current)); }
+            break;
+          case "ArrowUp":
+            e.preventDefault();
+            if (playing && !e.repeat) rotate(s, 1);
+            break;
+          case "Period":
+            if (playing && !e.repeat) rotate(s, -1);
+            break;
+          case "Space":
+            e.preventDefault();
+            if (playing && !e.repeat) { hardDrop(s); playDropSound(); }
+            break;
+          case "ShiftLeft":
+          case "Slash":
+            if (playing && !e.repeat) holdPiece(s);
+            break;
+        }
+      } else {
+        switch (e.code) {
           case "KeyA":
             e.preventDefault();
             if (playing) { moveLeft(s); startRepeat("KeyA", () => moveLeft(stateRef.current)); }
@@ -583,43 +609,12 @@ export default function Tetris2P() {
           case "KeyE":
             if (playing && !e.repeat) rotate(s, -1);
             break;
-          case "Space":
-            e.preventDefault();
-            if (playing && !e.repeat) { hardDrop(s); playDropSound(); }
-            break;
-          case "KeyZ":
-          case "ShiftLeft":
-            if (playing && !e.repeat) holdPiece(s);
-            break;
-        }
-      } else {
-        switch (e.code) {
-          case "ArrowLeft":
-            e.preventDefault();
-            if (playing) { moveLeft(s); startRepeat("ArrowLeft", () => moveLeft(stateRef.current)); }
-            break;
-          case "ArrowRight":
-            e.preventDefault();
-            if (playing) { moveRight(s); startRepeat("ArrowRight", () => moveRight(stateRef.current)); }
-            break;
-          case "ArrowDown":
-            e.preventDefault();
-            if (playing) { softDrop(s); startRepeat("ArrowDown", () => softDrop(stateRef.current)); }
-            break;
-          case "ArrowUp":
-          case "Period":
-            e.preventDefault();
-            if (playing && !e.repeat) rotate(s, 1);
-            break;
-          case "Comma":
-            if (playing && !e.repeat) rotate(s, -1);
-            break;
           case "Enter":
             e.preventDefault();
             if (playing && !e.repeat) { hardDrop(s); playDropSound(); }
             break;
           case "ShiftRight":
-          case "Slash":
+          case "KeyZ":
             if (playing && !e.repeat) holdPiece(s);
             break;
         }
@@ -748,41 +743,41 @@ export default function Tetris2P() {
           </div>
         </aside>
 
-        <div className="flex flex-col items-center gap-2">
-          <div className="relative w-full max-w-[320px]">
-            <canvas
-              ref={boardRef}
-              className="block w-full rounded-md border border-slate-700/70 shadow-[0_0_40px_rgba(34,211,238,0.15)]"
-            />
-          </div>
+        <div className="relative w-full max-w-[320px]">
+          <canvas
+            ref={boardRef}
+            className="block w-full rounded-md border border-slate-700/70 shadow-[0_0_40px_rgba(34,211,238,0.15)]"
+          />
+        </div>
 
-          <div className="panel hidden w-[100px] flex-col gap-2 p-2 sm:flex">
+        <div className="panel hidden w-[100px] flex-col gap-3 p-2 sm:flex">
+          <div>
             <p className="label">NEXT</p>
             <canvas ref={nextRef} className="mt-1 block" />
           </div>
-        </div>
-
-        <div className="panel hidden flex-col gap-2 p-2 sm:flex">
-          <p className="label text-center">OPPONENT</p>
-          <canvas
-            ref={oppBoardRef}
-            className="block rounded border border-slate-700/50"
-          />
-          <div className="flex justify-between text-[10px] text-slate-400">
-            <span>Lv.{opp.level}</span>
-            <span>{opp.lines}L</span>
+          <div className="h-px bg-slate-700/60" />
+          <div>
+            <p className="label text-center">OPPONENT</p>
+            <canvas
+              ref={oppBoardRef}
+              className="mt-1 block rounded border border-slate-700/50"
+            />
+            <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+              <span>Lv.{opp.level}</span>
+              <span>{opp.lines}L</span>
+            </div>
           </div>
         </div>
       </div>
 
       {role === "host" && (
         <p className="text-[10px] text-slate-500">
-          WASD move · W/Q rotate · Space drop · Z hold
+          ← → ↓ move · ↑ rotate · . ccw · Space drop · Shift/ hold
         </p>
       )}
       {role === "guest" && (
         <p className="text-[10px] text-slate-500">
-          ← → ↓ move · ↑/. rotate · Enter drop · Shift// hold
+          WASD move · W/Q rotate · E ccw · Enter drop · Z hold
         </p>
       )}
     </div>
