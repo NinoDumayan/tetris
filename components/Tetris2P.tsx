@@ -419,8 +419,8 @@ export default function Tetris2P() {
     if (!boardCanvas || !holdCanvas || !nextCanvas || !oppCanvas) return;
 
     const boardCtx = fitCanvas(boardCanvas, BOARD_W, BOARD_H, true);
-    const holdCtx = fitCanvas(holdCanvas, 100, 60);
-    const nextCtx = fitCanvas(nextCanvas, 100, 90);
+    const holdCtx = fitCanvas(holdCanvas, 100, 70);
+    const nextCtx = fitCanvas(nextCanvas, 100, 160);
     const oppCtx = oppCanvas.getContext("2d")!;
     oppCanvas.width = Math.round(OPP_CELL * COLS * 2);
     oppCanvas.height = Math.round(OPP_CELL * ROWS * 2);
@@ -487,17 +487,17 @@ export default function Tetris2P() {
         }
       }
 
-      holdCtx.clearRect(0, 0, 100, 60);
+      holdCtx.clearRect(0, 0, 100, 70);
       if (s.hold) drawMiniPiece(holdCtx, s.hold, PREVIEW_CELL);
 
-      nextCtx.clearRect(0, 0, 100, 90);
+      nextCtx.clearRect(0, 0, 100, 160);
       for (let i = 0; i < Math.min(PREVIEW_COUNT, s.queue.length); i++) {
         const type = s.queue[i];
         const shape = SHAPES[type];
         const cols = shape[0].length;
         const rows = shape.length;
         const ox = (100 - cols * PREVIEW_CELL) / 2;
-        const oy = i * 30 + (30 - rows * PREVIEW_CELL) / 2;
+        const oy = i * 50 + (50 - rows * PREVIEW_CELL) / 2;
         drawShape(nextCtx, shape, ox, oy, type, PREVIEW_CELL);
       }
 
@@ -550,8 +550,8 @@ export default function Tetris2P() {
     return () => {
       cancelAnimationFrame(rafRef.current);
       if (syncTimerRef.current) clearInterval(syncTimerRef.current);
+      channel.unbind_all();
       pusher.unsubscribe(`game-${roomCode}`);
-      pusher.disconnect();
     };
   }, [phase, roomCode, role, opp.board.length, syncToServer, applyOpponentState]);
 
