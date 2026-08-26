@@ -141,6 +141,15 @@ interface Hud {
   status: Status;
 }
 
+interface OpponentPiece {
+  type: PieceType;
+  shape: number[][];
+  x: number;
+  y: number;
+  timestamp: number;
+  level: number;
+}
+
 interface OpponentState {
   board: (string | number)[][];
   score: number;
@@ -184,6 +193,7 @@ export default function Tetris2P() {
     garbage: 0,
   });
   const oppRef = useRef<OpponentState>(opp);
+  const oppPieceRef = useRef<OpponentPiece | null>(null);
 
   const dropSoundRef = useRef<HTMLAudioElement | null>(null);
   const unevenSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -266,18 +276,9 @@ export default function Tetris2P() {
     const garbageToSend = pendingGarbageRef.current;
     if (garbageToSend > 0) pendingGarbageRef.current = 0;
     const boardToSend = getBoardState(s.board);
-    if (s.current && s.status === "playing" && !s.clearing) {
-      for (let r = 0; r < s.current.shape.length; r++) {
-        for (let c = 0; c < s.current.shape[r].length; c++) {
-          if (!s.current.shape[r][c]) continue;
-          const by = s.current.y + r;
-          const bx = s.current.x + c;
-          if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) {
-            boardToSend[by][bx] = s.current.type;
-          }
-        }
-      }
-    }
+    const pieceToSend = s.current && s.status === "playing" && !s.clearing
+      ? { type: s.current.type, shape: s.current.shape, x: s.current.x, y: s.current.y }
+      : null;
     try {
       const res = await fetch(`/api/sync/${roomCode}`, {
         method: "POST",
@@ -285,6 +286,7 @@ export default function Tetris2P() {
         body: JSON.stringify({
           role,
           board: boardToSend,
+          piece: pieceToSend,
           score: s.score,
           lines: s.lines,
           level: s.level,
@@ -465,6 +467,15 @@ export default function Tetris2P() {
     channel.bind("state-update", (data: { state: Record<string, unknown> }) => {
       if (data.state) applyOpponentState(data.state);
     });
+    channel.bind("piece-update", (data: { role: string; piece: { type: PieceType; shape: number[][]; x: number; y: number } }) => {
+      if (data.role !== role) {
+        oppPieceRef.current = {
+          ...data.piece,
+          timestamp: performance.now(),
+          level: oppRef.current.level || 1,
+        };
+      }
+    });
     channel.bind("pusher:subscription_error", () => {});
 
     fallbackPollRef.current = setInterval(async () => {
@@ -538,6 +549,15 @@ export default function Tetris2P() {
       }
 
       drawOpponentBoard(oppCtx, oppRef.current.board, BOARD_W, BOARD_H);
+
+      const oppPiece = oppPieceRef.current;
+      if (oppPiece) {
+        const elapsed = performance.now() - oppPiece.timestamp;
+        const speed = levelSpeed(oppPiece.level);
+        const predictedY = oppPiece.y + Math.floor(elapsed / speed);
+        drawShape(oppCtx, oppPiece.shape, oppPiece.x * CELL, predictedY * CELL, oppPiece.type, CELL, true);
+        drawShape(oppCtx, oppPiece.shape, oppPiece.x * CELL, oppPiece.y * CELL, oppPiece.type, CELL);
+      }
 
       syncHud();
     };

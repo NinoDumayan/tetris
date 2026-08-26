@@ -52,7 +52,7 @@ export async function POST(
   await initDB();
   const { code } = await params;
   const body = await req.json();
-  const { role, board, score, lines, level, status, garbage } = body;
+  const { role, board, piece, score, lines, level, status, garbage } = body;
 
   if (role === "host") {
     await query`
@@ -84,6 +84,9 @@ export async function POST(
     const pusher = getPusherServer();
     if (pusher) {
       await pusher.trigger(`game-${code}`, "state-update", { state: updated[0] });
+      if (piece) {
+        await pusher.trigger(`game-${code}`, "piece-update", { role, piece });
+      }
     }
   } catch (e) {
     console.error("Pusher trigger failed:", e);
