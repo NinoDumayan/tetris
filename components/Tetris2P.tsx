@@ -183,6 +183,7 @@ export default function Tetris2P() {
     status: "playing",
     garbage: 0,
   });
+  const oppRef = useRef<OpponentState>(opp);
 
   const dropSoundRef = useRef<HTMLAudioElement | null>(null);
   const unevenSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -317,14 +318,16 @@ export default function Tetris2P() {
     const oppLevel = isHost ? st.guest_level : st.host_level;
     const oppStatus = isHost ? st.guest_status : st.host_status;
 
-    setOpp({
+    const next = {
       board: (oppBoard as (string | number)[][]) || [],
       score: (oppScore as number) || 0,
       lines: (oppLines as number) || 0,
       level: (oppLevel as number) || 1,
       status: (oppStatus as string as Status) || "playing",
       garbage: 0,
-    });
+    };
+    oppRef.current = next;
+    setOpp(next);
   }, [role]);
 
   const waitForOpponent = useCallback(async () => {
@@ -515,7 +518,7 @@ export default function Tetris2P() {
         drawShape(nextCtx, shape, ox, oy, type, PREVIEW_CELL);
       }
 
-      drawOpponentBoard(oppCtx, opp.board, BOARD_W, BOARD_H);
+      drawOpponentBoard(oppCtx, oppRef.current.board, BOARD_W, BOARD_H);
 
       syncHud();
     };
@@ -566,7 +569,7 @@ export default function Tetris2P() {
       channel.unbind_all();
       pusher.unsubscribe(`game-${roomCode}`);
     };
-  }, [phase, roomCode, role, opp.board.length, syncToServer, applyOpponentState]);
+  }, [phase, roomCode, role, syncToServer, applyOpponentState]);
 
   useEffect(() => {
     if (phase !== "playing") return;
