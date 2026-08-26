@@ -591,67 +591,36 @@ export default function Tetris2P() {
       const s = stateRef.current;
       const playing = s.status === "playing";
 
-      if (role === "host") {
-        switch (e.code) {
-          case "ArrowLeft":
-            e.preventDefault();
-            if (playing) { moveLeft(s); startRepeat("ArrowLeft", () => moveLeft(stateRef.current)); }
-            break;
-          case "ArrowRight":
-            e.preventDefault();
-            if (playing) { moveRight(s); startRepeat("ArrowRight", () => moveRight(stateRef.current)); }
-            break;
-          case "ArrowDown":
-            e.preventDefault();
-            if (playing) { softDrop(s); startRepeat("ArrowDown", () => softDrop(stateRef.current)); }
-            break;
-          case "ArrowUp":
-            e.preventDefault();
-            if (playing && !e.repeat) rotate(s, 1);
-            break;
-          case "Period":
-            if (playing && !e.repeat) rotate(s, -1);
-            break;
-          case "Space":
-            e.preventDefault();
-            if (playing && !e.repeat) { hardDrop(s); playDropSound(); }
-            break;
-          case "ShiftLeft":
-          case "Slash":
-            if (playing && !e.repeat) holdPiece(s);
-            break;
-        }
-      } else {
-        switch (e.code) {
-          case "KeyA":
-            e.preventDefault();
-            if (playing) { moveLeft(s); startRepeat("KeyA", () => moveLeft(stateRef.current)); }
-            break;
-          case "KeyD":
-            e.preventDefault();
-            if (playing) { moveRight(s); startRepeat("KeyD", () => moveRight(stateRef.current)); }
-            break;
-          case "KeyS":
-            e.preventDefault();
-            if (playing) { softDrop(s); startRepeat("KeyS", () => softDrop(stateRef.current)); }
-            break;
-          case "KeyW":
-          case "KeyQ":
-            e.preventDefault();
-            if (playing && !e.repeat) rotate(s, 1);
-            break;
-          case "KeyE":
-            if (playing && !e.repeat) rotate(s, -1);
-            break;
-          case "Enter":
-            e.preventDefault();
-            if (playing && !e.repeat) { hardDrop(s); playDropSound(); }
-            break;
-          case "ShiftRight":
-          case "KeyC":
-            if (playing && !e.repeat) holdPiece(s);
-            break;
-        }
+      switch (e.code) {
+        case "ArrowLeft":
+          e.preventDefault();
+          if (playing) { moveLeft(s); startRepeat("ArrowLeft", () => moveLeft(stateRef.current)); }
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          if (playing) { moveRight(s); startRepeat("ArrowRight", () => moveRight(stateRef.current)); }
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          if (playing) { softDrop(s); startRepeat("ArrowDown", () => softDrop(stateRef.current)); }
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          if (playing && !e.repeat) rotate(s, 1);
+          break;
+        case "Period":
+          if (playing && !e.repeat) rotate(s, -1);
+          break;
+        case "Space":
+          e.preventDefault();
+          if (playing && !e.repeat) { hardDrop(s); playDropSound(); }
+          break;
+        case "ShiftLeft":
+        case "ShiftRight":
+        case "Slash":
+        case "KeyC":
+          if (playing && !e.repeat) holdPiece(s);
+          break;
       }
     };
 
@@ -803,16 +772,9 @@ export default function Tetris2P() {
         </div>
       </div>
 
-      {role === "host" && (
-        <p className="text-[10px] text-slate-500">
-          ← → ↓ move · ↑ rotate · . ccw · Space drop · Shift/ hold
-        </p>
-      )}
-      {role === "guest" && (
-        <p className="text-[10px] text-slate-500">
-          WASD move · W/Q rotate · E ccw · Enter drop · C hold
-        </p>
-      )}
+      <p className="text-[10px] text-slate-500">
+        ← → ↓ move · ↑ rotate · . ccw · Space drop · Shift/C hold
+      </p>
     </div>
   );
 }
