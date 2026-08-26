@@ -264,13 +264,26 @@ export default function Tetris2P() {
     const s = stateRef.current;
     const garbageToSend = pendingGarbageRef.current;
     if (garbageToSend > 0) pendingGarbageRef.current = 0;
+    const boardToSend = getBoardState(s.board);
+    if (s.current && s.status === "playing" && !s.clearing) {
+      for (let r = 0; r < s.current.shape.length; r++) {
+        for (let c = 0; c < s.current.shape[r].length; c++) {
+          if (!s.current.shape[r][c]) continue;
+          const by = s.current.y + r;
+          const bx = s.current.x + c;
+          if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) {
+            boardToSend[by][bx] = s.current.type;
+          }
+        }
+      }
+    }
     try {
       const res = await fetch(`/api/sync/${roomCode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           role,
-          board: getBoardState(s.board),
+          board: boardToSend,
           score: s.score,
           lines: s.lines,
           level: s.level,
