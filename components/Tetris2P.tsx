@@ -190,6 +190,7 @@ export default function Tetris2P() {
   const clearSoundRef = useRef<HTMLAudioElement | null>(null);
   const clearPlayedRef = useRef(false);
   const pendingGarbageRef = useRef(0);
+  const appliedGarbageRef = useRef(0);
   const syncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fallbackPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -265,18 +266,6 @@ export default function Tetris2P() {
     const garbageToSend = pendingGarbageRef.current;
     if (garbageToSend > 0) pendingGarbageRef.current = 0;
     const boardToSend = getBoardState(s.board);
-    if (s.current && s.status === "playing" && !s.clearing) {
-      for (let r = 0; r < s.current.shape.length; r++) {
-        for (let c = 0; c < s.current.shape[r].length; c++) {
-          if (!s.current.shape[r][c]) continue;
-          const by = s.current.y + r;
-          const bx = s.current.x + c;
-          if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) {
-            boardToSend[by][bx] = s.current.type;
-          }
-        }
-      }
-    }
     try {
       const res = await fetch(`/api/sync/${roomCode}`, {
         method: "POST",
@@ -311,13 +300,17 @@ export default function Tetris2P() {
           garbage: 0,
         });
 
-        if (myGarbage > 0) {
-          receiveGarbage(s.board, myGarbage);
+        if (myGarbage > appliedGarbageRef.current) {
+          const delta = myGarbage - appliedGarbageRef.current;
+          receiveGarbage(s.board, delta);
+          appliedGarbageRef.current = myGarbage;
           await fetch(`/api/garbage/${roomCode}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ role, clear: myGarbage }),
           });
+        } else if (myGarbage < appliedGarbageRef.current) {
+          appliedGarbageRef.current = myGarbage;
         }
       }
     } catch {}
@@ -412,6 +405,7 @@ export default function Tetris2P() {
     stateRef.current = initGame();
     clearPlayedRef.current = false;
     pendingGarbageRef.current = 0;
+    appliedGarbageRef.current = 0;
     syncHud();
   };
 
