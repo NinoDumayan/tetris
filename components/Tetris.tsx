@@ -335,6 +335,8 @@ export default function Tetris({ mode = "marathon", onBack }: { mode?: GameMode;
     const holdCtx = fitCanvas(holdCanvas, 100, 60);
     const nextCtx = fitCanvas(nextCanvas, 100, 220);
 
+    gameStartRef.current = performance.now();
+
     const blockSprites = new Map<string, HTMLCanvasElement>();
     for (const type of Object.keys(COLORS) as PieceType[]) {
       blockSprites.set(type, createBlockSprite(COLORS[type]));
