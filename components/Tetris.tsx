@@ -22,6 +22,7 @@ import {
   type GameState,
   type PieceType,
   type Status,
+  type Cell,
 } from "@/lib/tetris";
 
 const CELL = 30;
@@ -173,9 +174,28 @@ interface Hud {
   level: number;
   status: Status;
   nextPiece: string;
+  timer?: number;
+  goal?: number;
+  garbageRising?: boolean;
 }
 
-export default function Tetris() {
+type GameMode = "marathon" | "sprint" | "death" | "cheese";
+
+const SPRINT_GOAL = 40;
+const DEATH_INITIAL_INTERVAL = 15000;
+const DEATH_MIN_INTERVAL = 3000;
+const DEATH_RAMP = 500;
+const CHEESE_ROWS = 10;
+
+function formatTime(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const tenths = Math.floor((ms % 1000) / 100);
+  return `${minutes}:${seconds.toString().padStart(2, "0")}.${tenths}`;
+}
+
+export default function Tetris({ mode = "marathon", onBack }: { mode?: GameMode; onBack?: () => void }) {
   const boardRef = useRef<HTMLCanvasElement>(null);
   const holdRef = useRef<HTMLCanvasElement>(null);
   const nextRef = useRef<HTMLCanvasElement>(null);
@@ -214,30 +234,41 @@ export default function Tetris() {
   const stateRef = useRef<GameState>(initGame());
   const prevHud = useRef<Hud>({ score: 0, lines: 0, level: 1, status: "playing", nextPiece: "" });
   const timersRef = useRef<Map<string, { t: number; i: number }>>(new Map());
+  const gameStartRef = useRef(0);
+  const deathTimerRef = useRef(0);
   const [hud, setHud] = useState<Hud>({
     score: 0,
     lines: 0,
     level: 1,
     status: "playing",
     nextPiece: "",
+    timer: 0,
+    goal: mode === "sprint" ? SPRINT_GOAL : undefined,
   });
 
   const syncHud = () => {
     const s = stateRef.current;
+    const elapsed = gameStartRef.current > 0 ? performance.now() - gameStartRef.current : 0;
     const next: Hud = {
       score: s.score,
       lines: s.lines,
       level: s.level,
       status: s.status,
       nextPiece: s.queue[0]?.toUpperCase() ?? "",
+      timer: mode === "sprint" || mode === "death" ? elapsed : undefined,
+      goal: mode === "sprint" ? SPRINT_GOAL : undefined,
     };
     const p = prevHud.current;
+    const timerChanged = mode === "sprint" || mode === "death"
+      ? Math.floor((next.timer ?? 0) / 100) !== Math.floor((p.timer ?? 0) / 100)
+      : false;
     if (
       next.score !== p.score ||
       next.lines !== p.lines ||
       next.level !== p.level ||
       next.status !== p.status ||
-      next.nextPiece !== p.nextPiece
+      next.nextPiece !== p.nextPiece ||
+      timerChanged
     ) {
       prevHud.current = next;
       setHud(next);
@@ -267,6 +298,22 @@ export default function Tetris() {
   const restart = () => {
     stateRef.current = initGame();
     clearPlayedRef.current = false;
+    gameStartRef.current = performance.now();
+    deathTimerRef.current = 0;
+
+    if (mode === "cheese") {
+      const s = stateRef.current;
+      for (let i = 0; i < CHEESE_ROWS; i++) {
+        const gap = Math.floor(Math.random() * COLS);
+        const row: Cell[] = [];
+        for (let c = 0; c < COLS; c++) {
+          row.push(c === gap ? 0 : "G");
+        }
+        s.board.shift();
+        s.board.push(row);
+      }
+    }
+
     syncHud();
   };
 
@@ -467,6 +514,19 @@ let raf = 0;
           if (s.clearing.remaining <= 0) {
             finalizeClear(s);
             clearPlayedRef.current = false;
+
+            if (mode === "sprint" && s.lines >= SPRINT_GOAL) {
+              s.status = "over";
+            } else if (mode === "cheese") {
+              let hasGarbage = false;
+              for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                  if (s.board[r][c] === "G") { hasGarbage = true; break; }
+                }
+                if (hasGarbage) break;
+              }
+              if (!hasGarbage) s.status = "over";
+            }
           }
         } else {
           acc += dt;
@@ -480,6 +540,22 @@ let raf = 0;
         if (s.lastLockUneven) {
           s.lastLockUneven = false;
           playUnevenSound();
+        }
+
+        if (mode === "death" && s.status === "playing" && !s.clearing) {
+          deathTimerRef.current += dt;
+          const elapsed = gameStartRef.current > 0 ? now - gameStartRef.current : 0;
+          const riseInterval = Math.max(DEATH_MIN_INTERVAL, DEATH_INITIAL_INTERVAL - Math.floor(elapsed / 10000) * DEATH_RAMP);
+          if (deathTimerRef.current >= riseInterval) {
+            deathTimerRef.current = 0;
+            const gap = Math.floor(Math.random() * COLS);
+            const row: Cell[] = [];
+            for (let c = 0; c < COLS; c++) {
+              row.push(c === gap ? 0 : "G");
+            }
+            s.board.shift();
+            s.board.push(row);
+          }
         }
       }
       render();
@@ -504,7 +580,11 @@ let raf = 0;
 
   return (
     <main className="flex min-h-dvh flex-col items-center gap-3 p-2 sm:gap-5 sm:p-4">
-      <h1 className="neon-title text-3xl tracking-[0.35em] sm:text-4xl">TETRIS</h1>
+      <div className="flex items-center gap-4">
+        <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-300">← Back</button>
+        <h1 className="neon-title text-3xl tracking-[0.35em] sm:text-4xl">TETRIS</h1>
+        <span className="text-xs text-slate-500 uppercase">{mode}</span>
+      </div>
 
       <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-start sm:gap-4">
         <aside className="panel hidden w-[124px] flex-col gap-4 p-3 sm:flex">
@@ -513,6 +593,32 @@ let raf = 0;
             <canvas ref={holdRef} className="mt-1 block" />
           </div>
           <div className="h-px bg-slate-700/60" />
+          {(mode === "sprint" || mode === "death") && (
+            <div>
+              <p className="label">TIME</p>
+              <p className="value font-mono text-lg">{formatTime(hud.timer ?? 0)}</p>
+            </div>
+          )}
+          {mode === "sprint" && (
+            <div>
+              <p className="label">GOAL</p>
+              <p className="value">{SPRINT_GOAL - hud.lines} left</p>
+            </div>
+          )}
+          {mode === "cheese" && (
+            <div>
+              <p className="label">GARBAGE</p>
+              <p className="value">{(() => {
+                let count = 0;
+                for (let r = 0; r < ROWS; r++) {
+                  for (let c = 0; c < COLS; c++) {
+                    if (stateRef.current.board[r][c] === "G") count++;
+                  }
+                }
+                return count;
+              })()}</p>
+            </div>
+          )}
           <div>
             <p className="label">SCORE</p>
             <p className="value">{hud.score.toLocaleString()}</p>
@@ -532,6 +638,12 @@ let raf = 0;
             <div className="flex items-center gap-2">
               <span className="label">HOLD</span>
               <div className="flex items-center gap-4">
+                {(mode === "sprint" || mode === "death") && (
+                  <div>
+                    <span className="label">TIME </span>
+                    <span className="value text-xs font-mono">{formatTime(hud.timer ?? 0)}</span>
+                  </div>
+                )}
                 <div>
                   <span className="label">SCORE </span>
                   <span className="value text-xs">{hud.score.toLocaleString()}</span>
@@ -552,11 +664,31 @@ let raf = 0;
             {overlay && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 rounded-md bg-slate-950/80 backdrop-blur-sm">
                 <p className="neon-title text-2xl sm:text-3xl">
-                  {hud.status === "over" ? "GAME OVER" : "PAUSED"}
+                  {hud.status === "over"
+                    ? mode === "sprint" && hud.lines >= SPRINT_GOAL
+                      ? "COMPLETE!"
+                      : mode === "cheese"
+                        ? "CLEARED!"
+                        : "GAME OVER"
+                    : "PAUSED"}
                 </p>
                 {hud.status === "over" && (
                   <p className="value text-center text-sm">
-                    Score {hud.score.toLocaleString()}
+                    {mode === "sprint" && (
+                      <>Time {formatTime(hud.timer ?? 0)}</>
+                    )}
+                    {mode === "death" && (
+                      <>Survived {formatTime(hud.timer ?? 0)}</>
+                    )}
+                    {mode === "cheese" && (
+                      <>Cleared all garbage!</>
+                    )}
+                    {mode === "marathon" && (
+                      <>Score {hud.score.toLocaleString()}</>
+                    )}
+                    {(mode === "sprint" || mode === "death") && (
+                      <><br />Score {hud.score.toLocaleString()}</>
+                    )}
                     <br />
                     Level {hud.level} · {hud.lines} lines
                   </p>
