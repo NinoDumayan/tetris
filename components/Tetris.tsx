@@ -203,6 +203,7 @@ export default function Tetris({ mode = "marathon", onBack }: { mode?: GameMode;
   const unevenSoundRef = useRef<HTMLAudioElement | null>(null);
   const clearSoundRef = useRef<HTMLAudioElement | null>(null);
   const clearPlayedRef = useRef(false);
+  const tetrisSoundRef = useRef<HTMLAudioElement | null>(null);
 
   const playDropSound = () => {
     if (!dropSoundRef.current) {
@@ -227,6 +228,15 @@ export default function Tetris({ mode = "marathon", onBack }: { mode?: GameMode;
       clearSoundRef.current = new Audio("/sounds/malupiton-boss-2.mp3");
     }
     const audio = clearSoundRef.current;
+    audio.currentTime = 0;
+    void audio.play().catch(() => {});
+  };
+
+  const playTetrisSound = () => {
+    if (!tetrisSoundRef.current) {
+      tetrisSoundRef.current = new Audio("/sounds/malupiton-bossing.mp3");
+    }
+    const audio = tetrisSoundRef.current;
     audio.currentTime = 0;
     void audio.play().catch(() => {});
   };
@@ -514,8 +524,13 @@ let raf = 0;
           }
           s.clearing.remaining -= dt;
           if (s.clearing.remaining <= 0) {
-            finalizeClear(s);
+            const lockedType = s.lastLockedType;
+            const cleared = finalizeClear(s);
             clearPlayedRef.current = false;
+
+            if (cleared >= 4 && lockedType === "I") {
+              playTetrisSound();
+            }
 
             if (mode === "sprint" && s.lines >= SPRINT_GOAL) {
               s.status = "over";

@@ -233,6 +233,7 @@ export interface GameState {
   status: Status;
   lastLockUneven: boolean;
   clearing: Clearing | null;
+  lastLockedType: PieceType | null;
 }
 
 function topUpQueue(queue: PieceType[], bag: PieceType[]) {
@@ -260,6 +261,7 @@ export function initGame(): GameState {
     status: "playing",
     lastLockUneven: false,
     clearing: null,
+    lastLockedType: null,
   };
 }
 
@@ -324,6 +326,7 @@ export function finalizeClear(s: GameState): number {
 export function lock(s: GameState): void {
   const over = lockPiece(s.board, s.current);
   s.lastLockUneven = hasGapBeneath(s.board, s.current);
+  s.lastLockedType = s.current.type;
   if (over) {
     s.status = "over";
     return;
